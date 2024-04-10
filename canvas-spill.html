@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+    
+    
+    canvas {/*spill området*/
+        position: relative;
+        border:1px solid #d3d3d3;
+        background-color: #f1f1f1;
+        left: 25%;
+        top: 50px;
+    }
+    .knapp{/*knappene*/
+      position: absolute;
+      /*display: none;/*remove this when don testing*/
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #NextLevel { /*level knapp*/
+      display: none;
+    }
+    #FreePlayLevel { /*free play knapp*/
+      display: none;
+      position: absolute;
+      /*display: none;/*remove this when don testing*/
+      top: 55%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  </style>
+</head>
+<body onload="">
+  <h2 id="viktig">ther is alot of bugs sins(siden) i'm not don with the game!</h2>
+  <button onclick="gamestart(),style='display: none;'" class="knapp" id="bStart">start game</button>
+  <button onclick="StartLevel(),style='display: none;'" id="NextLevel" class="knapp">next level</button>
+  <button onclick="StartLevel(),freePlay = true,LifePoints = 6, level = 2,style='display: none;'" id="FreePlayLevel">FreePlayLevel</button>
+
+</body>
+<script>
+  /* regler, moduser og levler:
+  plyar er på allt
+
+  moduser:
+    free play er infenet play for man etter level 0
+
+  levler:
+    level 0 er kun pblock og eblock
+    level 1 er kun eMoveBlock og pblock
+    level 2 er pblock,  eMoveBlock og eblock
+    level 3 kan være laberynt eller noe plyar må gå igjenom eksempler er: laberynt parcore og obtecal-cours
+
+  regler:
+    life = 0 game over 
+    if plyar hitt a spesific amount of points they go to the next level if it's not Free Play
+    eblock and eMove Block reducess(minsker) points in levels and reducess(minsker) life in Free Play
+  */
+  // prøv opacaty istedfor og skife farge til den same som canvas backgrounden
+  //game pices
+    var plyar; //spiller
+    var pblock; //poeng block
+    var eMoveBlock; // enamy that moves after the plyar
+    var eblock; //enamy block spawner når spillere har foreksempel 10 poeng
+    
+  //other stuf
+    var Score; //poeng score
+    var Life; //life
+    var LifePoints = 3; //setter life til 3
+    var point = 0;// setter poeng til null
+    var level = 0; // bestemer level viss 0 level 0
+    var  nLevel = document.getElementById("NextLevel");//setter next level knappen til vareabel nLevel
+    var  fPlayLevel = document.getElementById("FreePlayLevel");//setter Free Play Level knappen til vareabel fPlayLevel
+    var  info = document.getElementById("viktig");//setter Free Play Level knappen til vareabel fPlayLevel
+    var collisionOccurred = false; // Flag to track collision occurrence betewn player and pblock
+    var ecollisionOccurred = false; // Flag to track collision occurrence betwen player and eblock
+    var EMBcollisionOccurred = false; // Flag to track collision occurrence betwen player and eMoveBlcok
+    var Espawn = false; // Flag to track if eblock shoud spwan
+    var embspwan = false; // Flag to track if eMoveBlock shoud spwan
+    var ebmCanMove = false; // Flag to track if eMoveBlock shoud move
+    var StartGame = true; //starts the game when true and stops it if it's false.(And remember to put this back to false when don testing).
+    var freePlay = false; // turns of free play
+
+    function gamestart() {
+        plyar = new component(50, 50, "blue", 350, 510);//setter spesificasjoner på spilleren
+        pblock = new component(50, 50, "green", 350, 10);//setter spesificasjoner på poeng block
+        eblock = new component(50, 50, "#f1f1f1", 10, 100);//setter spesificasjoner på enamy block
+        eMoveBlock = new component(50, 50, "#f1f1f1", 10, 100);//setter spesificasjoner på enamy block
+        Score = new component("30px", "Consolas", "black", 10, 40, "text");//setter spesificasjoner på poeng score
+        Life = new component("30px", "Consolas", "black", 10, 70, "text");//setter spesificasjoner på  life
+        myGameArea.start();// starter hele spilet
+        movepblock()
+        info.style.display = "none";
+    }
+    //spill område
+    var myGameArea = {
+    canvas : document.createElement("canvas"),
+    start : function() {
+        this.canvas.width = 780;
+        this.canvas.height = 570;
+        this.context = this.canvas.getContext("2d");
+        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        this.interval = setInterval(updateGameArea, 20);
+        this.interval = setInterval(updateeColor, 5000);
+
+  //gjør son at knapper på tastaturet flytter på plyer
+      window.addEventListener('keydown', function (e) {
+      myGameArea.keys = (myGameArea.keys || []);
+      myGameArea.keys[e.keyCode] = true;
+      })
+      window.addEventListener('keyup', function (e) {
+        myGameArea.keys[e.keyCode] = false;
+      })
+  },
+  // fjerner alt i canvas
+    clear : function() {
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    
+  }
+
+//spiller
+function component(width, height, color, x, y, type) {
+    this.type = type;
+    this.width = width;
+    this.height = height;
+    this.x = x;
+    this.y = y;    
+    this.color = color;
+    this.speedX = 0;//speed indicator
+  this.speedY = 0;//speed indicator
+    this.update = function(){//oppdaterer componentene
+    ctx = myGameArea.context;
+    if (this.type == "text") {
+      ctx.font = this.width + " " + this.height;
+      ctx.fillStyle = color;
+      ctx.fillText(this.text, this.x, this.y);
+    } 
+    else {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    }}
+
+    
+
+
+    //skifter posisjon på spilleren
+    this.newPos = function() {
+    this.x += this.speedX;
+    this.y += this.speedY;
+    this.hitsides();
+    }
+    this.hitsides = function() {//gjør son at spileren ikke går utenfor canvas
+      //viss playr trefer bunen
+    var rockbottom = myGameArea.canvas.height - this.height;
+    if (this.y > rockbottom) {
+      this.y = rockbottom;
+    }
+    //viss playr trefer den høygre veggen
+    var rockRight = myGameArea.canvas.width - this.width;
+    if (this.x > rockRight) {
+      this.x = rockRight;
+    }
+  
+    //viss playr trefer toppen
+    if (this.y < 0) {
+      this.y = 0;
+    }
+    //viss playr trefer den venstre veggen
+    if (this.x < 0) {
+      this.x = 0;
+    }}
+
+    // skjekker kolisjon melom pblock og playr
+    this.pcol = function(otherobj) {
+    return !(this.y + this.height < otherobj.y || 
+             this.y > otherobj.y + otherobj.height ||
+             this.x + this.width < otherobj.x ||
+             this.x > otherobj.x + otherobj.width);
+}
+    // skjekker kolisjon melom eblock og playr
+    this.ecol = function(otherobj) {
+    return !(this.y + this.height < otherobj.y || 
+             this.y > otherobj.y + otherobj.height ||
+             this.x + this.width < otherobj.x ||
+             this.x > otherobj.x + otherobj.width);
+}
+    // skjekker kolisjon melom eblock og playr
+    this.eMBcol = function(otherobj) {
+    return !(this.y + this.height < otherobj.y || 
+             this.y > otherobj.y + otherobj.height ||
+             this.x + this.width < otherobj.x ||
+             this.x > otherobj.x + otherobj.width);
+}}
+
+    //skifter posisjon på pblock og eblock
+    function  movepblock() { setTimeout( function() {
+      pblock.x = Math.random() * (myGameArea.canvas.width - pblock.width);
+      pblock.y = Math.random() * (myGameArea.canvas.height - pblock.height);
+      eblock.x = Math.random() * (myGameArea.canvas.width - eblock.width);
+      eblock.y = Math.random() * (myGameArea.canvas.height - eblock.height);
+    }, 10)  
+    }
+    // moves eMoveBlock to playr
+    function embMOvment() {
+      if (eMoveBlock.x < plyar.x) {
+            eMoveBlock.x += 1; // Move right
+        } else if (eMoveBlock.x > plyar.x) {
+            eMoveBlock.x -= 1; // Move left
+        }
+        if (eMoveBlock.y < plyar.y) {
+            eMoveBlock.y += 1; // Move down
+        } else if (eMoveBlock.y > plyar.y) {
+            eMoveBlock.y -= 1; // Move up
+        }
+    }
+
+
+    //skifter farge på eblock
+    function updateeColor() {
+      if (StartGame,eblock.color === "#007900") {
+            setTimeout(() => {
+                eblock.color = "red";
+                setTimeout(() => {
+                    eblock.color = "#007900";
+                }, 100);
+            }, 100);
+        }
+    }
+
+    //sluter spilet
+    function NewLevel() {
+      plyar.color = "#f1f1f1";
+      eblock.color = "#f1f1f1";
+      pblock.color = "#f1f1f1";
+      eMoveBlock.color = "#f1f1f1";
+      Score.text = "SCORE:" + point;
+      Life.text = "LIFE:" + LifePoints;
+      Espawn = false;
+      embspwan = false;
+      Score.x = 320;
+        if(freePlay === false){
+        level++;//gjør son at spilet ikke sluter neste gang point er 10
+        }
+          ebmCanMove = false;//gjør son at emb ikke kan fytte seg
+          setTimeout(function(){StartGame = false},100);
+          //StartGame = false;//stopper spilet
+          nLevel.style.display = "block";
+          fPlayLevel.style.display = "block";
+    }
+    //starter level
+    function StartLevel() {
+      freePlay = false;
+      point = 0;
+      StartGame = true;
+      nLevel.style.display = "none";
+      fPlayLevel.style.display = "none";
+      Score.x = 1;
+      plyar.color = "blue";
+      eblock.color = "#f1f1f1";
+      pblock.color = "green";
+      movepblock()
+    }
+
+
+
+
+    function updateGameArea() {//oppdaterer spill område 50 ganger i sekundet
+      if(StartGame){
+      myGameArea.clear();
+  //eblock
+      if (plyar.ecol(eblock) && Espawn) {
+      if (!ecollisionOccurred){
+        if(freePlay === false){
+        point--;}
+        else {
+          LifePoints--;
+        }
+        ecollisionOccurred = true;
+        movepblock()
+      }
+      else {
+        ecollisionOccurred = false;
+      }
+      }
+  //pblock
+      if (plyar.pcol(pblock)) {
+        if (!collisionOccurred) {// viss playr trefer pblock så skjer dette
+                point++;// øker poengene
+                collisionOccurred = true; // Set flag to true to indicate collision occurred
+                movepblock()
+            }
+      } 
+        else{ // viss playr ikke trefer pblock så skjer dette
+        collisionOccurred = false; // Reset flag if no collision
+      }
+  //eMoveBlock
+      if (plyar.eMBcol(eMoveBlock) && embspwan) {// emb stand for eMoveBlock
+        if (!EMBcollisionOccurred) {// viss playr trefer pblock så skjer dette
+          if(freePlay === false){
+        point--;}
+        else if(freePlay) {
+          LifePoints--;
+          
+        }
+            EMBcollisionOccurred = true; // Set flag to true to indicate collision occurred
+            eMoveBlock.x = Math.random() * (myGameArea.canvas.width - eMoveBlock.width);
+            eMoveBlock.y = Math.random() * (myGameArea.canvas.height - eMoveBlock.height);
+            movepblock()
+            }
+        else {
+          EMBcollisionOccurred = false; 
+        }
+      } 
+        else{ // viss playr ikke trefer pblock så skjer dette
+        collisionOccurred = false; // Reset flag if no collision
+      }
+        Score.text = "SCORE:" + point;//opddaterer poeng skåren på canvas-et
+        Life.text = "LIFE:" + LifePoints;//opddaterer Livene på canvas-et
+        if(LifePoints === 0) {
+          NewLevel()
+        }
+
+  // gjør son at eblock dukker opp når point er 5 eller høgere
+      if(point === 5 && level === 0){
+          eblock.color = "#007900";
+          Espawn = true;
+        }
+      if(point === 5 && level === 2){
+          eblock.color = "#007900";
+          Espawn = true;
+        }
+
+
+    // Update eMoveBlock position to follow the player if point is 0 and level is 1
+      if(point === 0 && level === 1){
+          embspwan = true;
+        ebmCanMove = true;
+        eMoveBlock.color = "red"
+        embMOvment()//stands for eMoveBlcok movment
+      }
+      if(point === 10 && level === 2){
+          embspwan = true;
+        ebmCanMove = true;
+        eMoveBlock.color = "red"
+        embMOvment()//stands for eMoveBlcok movment
+      }
+
+   //oppdaterer canvas componentene
+        Score.update();
+        Life.update();
+        pblock.update();
+        eblock.update();
+        eMoveBlock.update();
+        plyar.update();
+      //oppdaterer playr sin posisjon
+        plyar.newPos();
+      // gjør son at emb kan flytte seg vis emnCanMove er set til true
+      if(ebmCanMove) {
+        embMOvment()
+      }
+    }
+
+      //slutter levelen
+      if(freePlay === false) {
+        if(level === 0 && point === 10) {
+          NewLevel()
+        }
+        else if(level === 1 && point === 20) {
+          NewLevel()
+        }
+        else if(level === 2 && point === 30) {
+          NewLevel()
+        }}
+        //seter speed til 0 sån at plyar stoper nor kysa ikke er tryket på
+        eMoveBlock.speedX = 2;
+        eMoveBlock.speedY = 2;
+        plyar.speedX = 0;
+        plyar.speedY = 0;
+        if (myGameArea.keys && myGameArea.keys[87])/*the number is the plasment of the W key on the keyboard*/ {plyar.speedY = -3; }
+        if (myGameArea.keys && myGameArea.keys[83])/*the number is the plasment of the S key on the keyboard*/ {plyar.speedY = 3; }
+        if (myGameArea.keys && myGameArea.keys[68])/*the number is the plasment of the D key on the keyboard*/ {plyar.speedX = 3; }
+        if (myGameArea.keys && myGameArea.keys[65])/*the number is the plasment of the A key on the keyboard*/ {plyar.speedX = -3; }
+        if (myGameArea.keys && myGameArea.keys[81])/*the number is the plasment of the Q key on the keyboard*/ {freePlay = true}
+      
+    }
+
+
+</script>
+</html>
